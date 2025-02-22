@@ -1,0 +1,264 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  HttpApi:
+    CorsConfiguration:
+      AllowOrigins:
+        - "*"
+      AllowHeaders:
+        - "*"
+      AllowMethods:
+        - "*"
+    Auth:
+      EnableIamAuthorizer: true
+
+#Parameters:
+#  Region:
+#    Description: Region for deployment
+#    Default: eu-central-1
+#    Type: String
+#    AllowedValues:
+#      - eu-central-1
+#      - eu-
+
+#Conditions:
+#  IsPrimaryRegion: !Equals
+#    -
+
+Parameters:
+  UserPoolName:
+    Type: String
+    Default: MyUserPool
+  IdentityPoolName:
+    Type: String
+    Default: MyIdentityPool
+
+Resources:
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /sam-app/project2
+      RetentionInDays: 7
+
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Ref UserPoolName
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub sam-app-${AWS::StackName}
+      UserPoolId: !Ref CognitoUserPool
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      ClientName: app-client
+      GenerateSecret: false
+      AllowedOAuthFlows:
+        - implicit
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+      SupportedIdentityProviders:
+        - COGNITO
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      CallbackURLs:
+        - http://localhost:4200/callback
+        - https://main.d2999je8ebi5mc.amplifyapp.com/callback
+
+  CognitoIdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: !Ref IdentityPoolName
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref UserPoolClient
+          ProviderName: !GetAtt CognitoUserPool.ProviderName
+
+
+  AuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref CognitoIdentityPool
+      Policies:
+        - PolicyName: AuthenticatedPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'execute-api:Invoke'
+                Resource:
+                  - !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ServerlessHttpApi}/*/*/*/*
+
+
+  IdentityPoolRole:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref CognitoIdentityPool
+      Roles:
+        authenticated: !GetAtt AuthenticatedRole.Arn
+
+  ImageTable:
+    Type: AWS::DynamoDB::GlobalTable
+    Properties:
+      TableName: ImageTable
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: N
+        - AttributeName: url
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          AttributeType: HASH
+      Replicas:
+
+  StagingBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      NotificationConfiguration:
+        QueueConfiguration:
+          - Event: s3:ObjectCreated:Put
+            Queue: !GetAtt ProcessingQueue.Arn
+
+  PrimaryBucket:
+    Type: AWS::S3::Bucket
+
+  ProcessingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: ProcessingQueue
+
+  AuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: authFunction
+      Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest
+      Runtime: java17
+      CodeUri: .
+      MemorySize: 512
+      Timeout: 30
+      Tracing: Active
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:GetId
+                - cognito-idp:GetCredentialsForIdentity
+              Resource: !Sub arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool}
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminConfirmSignUp
+              Resource: !GetAtt CognitoUserPool.Arn
+        - AWSLambdaBasicExecutionRole
+        - CloudWatchLambdaInsightsExecutionRolePolicy
+      Environment:
+        Variables:
+          MAIN_CLASS: com.microserviceupskilling.project2.Project2Application
+          SPRING_CLOUD_FUNCTION_DEFINITION: getCredentials
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          IDENTITY_POOL_ID: !Ref CognitoIdentityPool
+          LOG_LEVEL: INFO
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /auth
+            Method: POST
+
+  Upload:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: upload
+      Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest
+      Runtime: java17
+      CodeUri: .
+      MemorySize: 512
+      Timeout: 30
+      Tracing: Active
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - s3:PutObject
+            Resource:
+              - !Sub "${StagingBucket.Arn}/*"
+      Environment:
+        Variables:
+          MAIN_CLASS: com.microserviceupskilling.project2.Project2Application
+          SPRING_CLOUD_FUNCTION_DEFINITION: upload
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          IDENTITY_POOL_ID: !Ref CognitoIdentityPool
+          LOG_LEVEL: INFO
+          STAGING_BUCKET: !Ref StagingBucket
+          PROCESSING_QUEUE: !Ref ProcessingQueue
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Auth:
+              Authorizer: AWS_IAM
+            Path: /image
+            Method: POST
+
+Outputs:
+  CognitoDomain:
+    Description: Url for cognito hosted login pages
+    Value: !Sub https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/signup?client_id=${UserPoolClient}&redirect_uri=http://localhost:4200/callback&response_type=token
+#  Delete:
+#    Type: AWS::Serverless::Function
+#    Properties:
+#      FunctionName: delete
+#      Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest
+#      Runtime: java17
+#      CodeUri: .
+#      MemorySize: 512
+#      Timeout: 30
+#      Tracing: Active
+#      Environment:
+#        Variables:
+#          STAGING_BUCKET: !Ref StagingBucket
+#          PROCESSING_QUEUE: !Ref ProcessingQueue
+#      Events:
+#        Api:
+#          Type: HttpApi
+#          Properties:
+#            Auth:
+#              Authorizer: AWS_IAM
+#              Path: /
+#              Method: POST

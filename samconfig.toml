@@ -1,0 +1,10 @@
+version = 0.1
+[default.deploy.parameters]
+stack_name = "project2"
+resolve_s3 = true
+s3_prefix = "project2"
+region = "eu-central-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "UserPoolName=\"Project2UserPool\" IdentityPoolName=\"Project2IdentityPool\""
+image_repositories = []
