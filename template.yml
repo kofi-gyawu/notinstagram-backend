@@ -13,19 +13,6 @@ Globals:
     Auth:
       EnableIamAuthorizer: true
 
-#Parameters:
-#  Region:
-#    Description: Region for deployment
-#    Default: eu-central-1
-#    Type: String
-#    AllowedValues:
-#      - eu-central-1
-#      - eu-
-
-#Conditions:
-#  IsPrimaryRegion: !Equals
-#    -
-
 Parameters:
   UserPoolName:
     Type: String
@@ -33,6 +20,12 @@ Parameters:
   IdentityPoolName:
     Type: String
     Default: MyIdentityPool
+
+
+Conditions:
+  CreateGlobalResources:
+    - !Sub ${AWS::Region}
+    - eu-central-1
 
 Resources:
   LogGroup:
@@ -97,7 +90,6 @@ Resources:
         - ClientId: !Ref UserPoolClient
           ProviderName: !GetAtt CognitoUserPool.ProviderName
 
-
   AuthenticatedRole:
     Type: AWS::IAM::Role
     Properties:
@@ -131,23 +123,33 @@ Resources:
         authenticated: !GetAtt AuthenticatedRole.Arn
 
   ImageTable:
+    Condition: CreateGlobalResources
     Type: AWS::DynamoDB::GlobalTable
     Properties:
       TableName: ImageTable
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: id
-          AttributeType: N
+#        - AttributeName: id
+#          AttributeType: N
         - AttributeName: url
           AttributeType: S
+        - AttributeName: owner
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
       KeySchema:
-        - AttributeName: id
+        - AttributeName: url
           AttributeType: HASH
+#        - AttributeName: id
+#          AttributeType: HASH
       Replicas:
+        - Region: eu-central-1
+        - Region: eu-west-1
 
   StagingBucket:
     Type: AWS::S3::Bucket
     Properties:
+      BucketName: !Sub StagingBucket-${AWS::Region}
       NotificationConfiguration:
         QueueConfiguration:
           - Event: s3:ObjectCreated:Put
@@ -155,11 +157,20 @@ Resources:
 
   PrimaryBucket:
     Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub StagingBucket-${AWS::Region}
 
   ProcessingQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: ProcessingQueue
+
+
+  ProcessingFailedTopic:
+    Type: AWS::SNS::Topic
+
+  LogInTopic:
+    Type: AWS::SNS::Topic
 
   AuthFunction:
     Type: AWS::Serverless::Function
@@ -211,6 +222,9 @@ Resources:
       Timeout: 30
       Tracing: Active
       Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ImageTable
         - Statement:
             Effect: Allow
             Action:
@@ -221,6 +235,90 @@ Resources:
         Variables:
           MAIN_CLASS: com.microserviceupskilling.project2.Project2Application
           SPRING_CLOUD_FUNCTION_DEFINITION: upload
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          IDENTITY_POOL_ID: !Ref CognitoIdentityPool
+          LOG_LEVEL: INFO
+          STAGING_BUCKET: !Ref StagingBucket
+          PROCESSING_QUEUE: !Ref ProcessingQueue
+          IMAGE_TABLE: !Ref ImageTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Auth:
+              Authorizer: AWS_IAM
+            Path: /image
+            Method: POST
+
+
+  Process:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: process
+      Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest
+      Runtime: java17
+      CodeUri: .
+      MemorySize: 512
+      Timeout: 30
+      Tracing: Active
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ImageTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - s3:GetObject
+            Resource:
+              - !Sub "${StagingBucket.Arn}/*"
+        - Statement:
+            Effect: Allow
+            Action:
+              -s3:PutObject
+            Resource:
+              - !Sub "${PrimaryBucket.Arn}/*"
+      Environment:
+        Variables:
+          MAIN_CLASS: com.microserviceupskilling.project2.Project2Application
+          SPRING_CLOUD_FUNCTION_DEFINITION: process
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          IDENTITY_POOL_ID: !Ref CognitoIdentityPool
+          LOG_LEVEL: INFO
+          STAGING_BUCKET: !Ref StagingBucket
+          PRIMARY_BUCKET: !Ref PrimaryBucket
+          PROCESSING_QUEUE: !Ref ProcessingQueue
+          IMAGE_TABLE: !Ref ImageTable
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ProcessingQueue.Arn
+            BatchSize: 1
+
+
+  Share:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: share
+      Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest
+      Runtime: java17
+      CodeUri: .
+      MemorySize: 512
+      Timeout: 30
+      Tracing: Active
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - s3:GetObject
+            Resource:
+              - !Sub "${StagingBucket.Arn}/*"
+      Environment:
+        Variables:
+          MAIN_CLASS: com.microserviceupskilling.project2.Project2Application
+          SPRING_CLOUD_FUNCTION_DEFINITION: share
           COGNITO_USER_POOL_ID: !Ref CognitoUserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
           IDENTITY_POOL_ID: !Ref CognitoIdentityPool

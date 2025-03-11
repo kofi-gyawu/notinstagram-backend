@@ -1,0 +1,143 @@
+name: Pipeline
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'feature**'
+  delete:
+    branches:
+      - 'feature**'
+
+env:
+  SAM_TEMPLATE: template.yaml
+  PRIMARY_STACK_NAME: notinstagram-primary
+  PRIMARY_PIPELINE_EXECUTION_ROLE: arn:aws:iam::767828749690:role/aws-sam-cli-managed-primary-p-PipelineExecutionRole-D1Zd2pEJECFQ
+  PRIMARY_CLOUDFORMATION_EXECUTION_ROLE: arn:aws:iam::767828749690:role/aws-sam-cli-managed-prima-CloudFormationExecutionRo-Ond3NC0bm1Pu
+  PRIMARY_ARTIFACTS_BUCKET: aws-sam-cli-managed-primary-pipeli-artifactsbucket-uljckt1jxzok
+  PRIMARY_REGION: eu-central-1
+  SECONDARY_STACK_NAME: notinstagram-secondary
+  SECONDARY_PIPELINE_EXECUTION_ROLE: arn:aws:iam::767828749690:role/aws-sam-cli-managed-secondary-PipelineExecutionRole-I1yk1vK6ZzxR
+  SECONDARY_CLOUDFORMATION_EXECUTION_ROLE: arn:aws:iam::767828749690:role/aws-sam-cli-managed-secon-CloudFormationExecutionRo-VupsXmlGh1OF
+  SECONDARY_ARTIFACTS_BUCKET: aws-sam-cli-managed-secondary-pipe-artifactsbucket-om8tk1tcfqzj
+  SECONDARY_REGION: eu-west-1
+  HOSTED_ZONE_ID: ${{ secrets.HOSTED_ZONE_ID }}
+
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  build-and-package:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Build resources
+        run: sam build --template ${SAM_TEMPLATE}
+
+      - name: Assume the primary pipeline user role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.PRIMARY_REGION }}
+          role-to-assume: ${{ env.PRIMARY_PIPELINE_EXECUTION_ROLE }}
+          role-session-name: testing-packaging
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Upload artifacts to primary artifact buckets
+        run: |
+          sam package \
+            --s3-bucket ${PRIMARY_ARTIFACTS_BUCKET} \
+            --region ${PRIMARY_REGION} \
+            --output-template-file packaged-primary.yaml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packaged-primary.yaml
+          path: packaged-primary.yaml
+
+      - name: Assume the secondary pipeline user role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.SECONDARY_REGION }}
+          role-to-assume: ${{ env.SECONDARY_PIPELINE_EXECUTION_ROLE }}
+          role-session-name: SECONDARY-packaging
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Upload artifacts to SECONDARY artifact buckets
+        run: |
+          sam package \
+            --s3-bucket ${SECONDARY_ARTIFACTS_BUCKET} \
+            --region ${SECONDARY_REGION} \
+            --output-template-file packaged-secondary.yaml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packaged-secondary.yaml
+          path: packaged-secondary.yaml
+
+  deploy-primary:
+    needs: [build-and-package]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: packaged-primary.yaml
+
+      - name: Assume the primary pipeline user role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.PRIMARY_REGION }}
+          role-to-assume: ${{ env.PRIMARY_PIPELINE_EXECUTION_ROLE }}
+          role-session-name: primary-deployment
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Deploy primary
+        run: |
+          sam deploy --stack-name ${PRIMARY_STACK_NAME} \
+            --template packaged-primary.yaml \
+            --capabilities CAPABILITY_IAM \
+            --region ${PRIMARY_REGION} \
+            --s3-bucket ${PRIMARY_ARTIFACTS_BUCKET} \
+            --no-fail-on-empty-changeset \
+            --role-arn ${PRIMARY_CLOUDFORMATION_EXECUTION_ROLE}
+
+  deploy-secondary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: packaged-secondary.yaml
+
+      - name: Assume the secondary pipeline user role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.SECONDARY_REGION }}
+          role-to-assume: ${{ env.SECONDARY_PIPELINE_EXECUTION_ROLE }}
+          role-session-name: secondary-deployment
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Deploy secondary
+        run: |
+          sam deploy --stack-name ${SECONDARY_STACK_NAME} \
+            --template packaged-secondary.yaml \
+            --capabilities CAPABILITY_IAM \
+            --region ${SECONDARY_REGION} \
+            --s3-bucket ${SECONDARY_ARTIFACTS_BUCKET} \
+            --no-fail-on-empty-changeset \
+            --role-arn ${SECONDARY_CLOUDFORMATION_EXECUTION_ROLE}

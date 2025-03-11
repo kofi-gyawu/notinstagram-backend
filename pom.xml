@@ -31,7 +31,7 @@
 		<spring-cloud.version>2024.0.0</spring-cloud.version>
 		<aws-lambda-java-core.version>1.2.3</aws-lambda-java-core.version>
 		<aws-lambda-java-events.version>3.11.3</aws-lambda-java-events.version>
-		<aws-sdk.version>2.22.12</aws-sdk.version>
+		<aws-sdk.version>2.25.11</aws-sdk.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -81,6 +81,10 @@
 			<artifactId>s3</artifactId>
 			<version>${aws-sdk.version}</version>
 		</dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3-event-notifications</artifactId>
+        </dependency>
 		<dependency>
 			<groupId>software.amazon.awssdk</groupId>
 			<artifactId>sqs</artifactId>

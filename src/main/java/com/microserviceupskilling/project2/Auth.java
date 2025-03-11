@@ -57,4 +57,9 @@ public class Auth {
             }
         };
     }
+
+    @Bean
+    public Function<APIGatewayProxyRequestEvent, Object>  subscribe() {
+        return null;
+    }
 }

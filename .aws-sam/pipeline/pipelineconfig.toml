@@ -1,0 +1,23 @@
+version = 0.1
+[default.pipeline_bootstrap.parameters]
+oidc_provider_url = "https://token.actions.githubusercontent.com"
+oidc_client_id = "sts.amazonaws.com"
+github_org = "kofi-gyawu"
+github_repo = "notinstagram-backend"
+deployment_branch = "main"
+oidc_provider = "github-actions"
+permissions_provider = "OpenID Connect (OIDC)"
+
+[primary.pipeline_bootstrap.parameters]
+pipeline_execution_role = "arn:aws:iam::767828749690:role/aws-sam-cli-managed-primary-p-PipelineExecutionRole-D1Zd2pEJECFQ"
+cloudformation_execution_role = "arn:aws:iam::767828749690:role/aws-sam-cli-managed-prima-CloudFormationExecutionRo-Ond3NC0bm1Pu"
+artifacts_bucket = "aws-sam-cli-managed-primary-pipeli-artifactsbucket-uljckt1jxzok"
+image_repository = ""
+region = "eu-central-1"
+
+[secondary.pipeline_bootstrap.parameters]
+pipeline_execution_role = "arn:aws:iam::767828749690:role/aws-sam-cli-managed-secondary-PipelineExecutionRole-I1yk1vK6ZzxR"
+cloudformation_execution_role = "arn:aws:iam::767828749690:role/aws-sam-cli-managed-secon-CloudFormationExecutionRo-VupsXmlGh1OF"
+artifacts_bucket = "aws-sam-cli-managed-secondary-pipe-artifactsbucket-om8tk1tcfqzj"
+image_repository = ""
+region = "eu-west-1"
