@@ -104,14 +104,14 @@ jobs:
 
       - name: Deploy primary
         run: |
-          y | sam deploy --stack-name ${PRIMARY_STACK_NAME} \
+          sam deploy --stack-name ${PRIMARY_STACK_NAME} \
             --template packaged-primary.yaml \
             --capabilities CAPABILITY_IAM \
             --region ${PRIMARY_REGION} \
             --s3-bucket ${PRIMARY_ARTIFACTS_BUCKET} \
             --no-fail-on-empty-changeset \
             --role-arn ${PRIMARY_CLOUDFORMATION_EXECUTION_ROLE} \
-            --confirm-changeset
+#            --no-confirm-changeset
 
   deploy-secondary:
     needs: [build-and-package]
@@ -136,11 +136,11 @@ jobs:
 
       - name: Deploy secondary
         run: |
-          y | sam deploy --stack-name ${SECONDARY_STACK_NAME} \
+          sam deploy --stack-name ${SECONDARY_STACK_NAME} \
             --template packaged-secondary.yaml \
             --capabilities CAPABILITY_IAM \
             --region ${SECONDARY_REGION} \
             --s3-bucket ${SECONDARY_ARTIFACTS_BUCKET} \
             --no-fail-on-empty-changeset \
             --role-arn ${SECONDARY_CLOUDFORMATION_EXECUTION_ROLE} \
-            --confirm-changeset
+#            --confirm-changeset
