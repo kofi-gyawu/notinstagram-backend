@@ -286,7 +286,7 @@ Resources:
         - Statement:
             Effect: Allow
             Action:
-              -s3:PutObject
+              - s3:PutObject
             Resource:
               - !Sub "${PrimaryBucket.Arn}/*"
       Environment:
