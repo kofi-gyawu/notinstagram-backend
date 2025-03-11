@@ -110,7 +110,8 @@ jobs:
             --region ${PRIMARY_REGION} \
             --s3-bucket ${PRIMARY_ARTIFACTS_BUCKET} \
             --no-fail-on-empty-changeset \
-            --role-arn ${PRIMARY_CLOUDFORMATION_EXECUTION_ROLE}
+            --role-arn ${PRIMARY_CLOUDFORMATION_EXECUTION_ROLE} \
+            --confirm-changeset
 
   deploy-secondary:
     needs: [build-and-package]
@@ -141,4 +142,5 @@ jobs:
             --region ${SECONDARY_REGION} \
             --s3-bucket ${SECONDARY_ARTIFACTS_BUCKET} \
             --no-fail-on-empty-changeset \
-            --role-arn ${SECONDARY_CLOUDFORMATION_EXECUTION_ROLE}
+            --role-arn ${SECONDARY_CLOUDFORMATION_EXECUTION_ROLE} \
+            --confirm-changeset
