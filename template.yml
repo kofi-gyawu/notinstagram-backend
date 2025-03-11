@@ -332,7 +332,7 @@ Resources:
             Auth:
               Authorizer: AWS_IAM
             Path: /image
-            Method: POST
+            Method: GET
 
 Outputs:
   CognitoDomain:
