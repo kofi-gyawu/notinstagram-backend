@@ -143,7 +143,7 @@ Resources:
   StagingBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub StagingBucket-${AWS::Region}
+      BucketName: !Sub stagingbucket-${AWS::Region}
       NotificationConfiguration:
         QueueConfiguration:
           - Event: s3:ObjectCreated:Put
@@ -152,7 +152,7 @@ Resources:
   PrimaryBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub StagingBucket-${AWS::Region}
+      BucketName: !Sub primarybucket-${AWS::Region}
 
   ProcessingQueue:
     Type: AWS::SQS::Queue
