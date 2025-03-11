@@ -145,7 +145,7 @@ Resources:
     Properties:
       BucketName: !Sub stagingbucket-${AWS::Region}
       NotificationConfiguration:
-        QueueConfiguration:
+        QueueConfigurations:
           - Event: s3:ObjectCreated:Put
             Queue: !GetAtt ProcessingQueue.Arn
 
