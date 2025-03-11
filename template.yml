@@ -129,8 +129,6 @@ Resources:
       TableName: ImageTable
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-#        - AttributeName: id
-#          AttributeType: N
         - AttributeName: url
           AttributeType: S
         - AttributeName: owner
@@ -139,9 +137,7 @@ Resources:
           AttributeType: S
       KeySchema:
         - AttributeName: url
-          AttributeType: HASH
-#        - AttributeName: id
-#          AttributeType: HASH
+          KeyType: HASH
       Replicas:
         - Region: eu-central-1
         - Region: eu-west-1
