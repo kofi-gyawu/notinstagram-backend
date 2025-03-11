@@ -140,6 +140,28 @@ Resources:
         - Region: eu-central-1
         - Region: eu-west-1
 
+  ProcessingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: ProcessingQueue
+
+  ProcessingQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ProcessingQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt ProcessingQueue.Arn
+            Condition:
+              ArnLike:
+                aws:SourceArn: !Sub arn:aws:s3:::stagingbucket-${AWS::Region}
+
   StagingBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -153,11 +175,6 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub primarybucket-${AWS::Region}
-
-  ProcessingQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: ProcessingQueue
 
 
   ProcessingFailedTopic:
