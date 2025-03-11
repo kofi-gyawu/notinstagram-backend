@@ -23,7 +23,7 @@ Parameters:
 
 
 Conditions:
-  CreateGlobalResources:
+  CreateGlobalResources: !Equals
     - !Sub ${AWS::Region}
     - eu-central-1
 
