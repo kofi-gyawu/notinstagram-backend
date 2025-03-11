@@ -10,7 +10,7 @@ on:
       - 'feature**'
 
 env:
-  SAM_TEMPLATE: template.yaml
+  SAM_TEMPLATE: template.yml
   PRIMARY_STACK_NAME: notinstagram-primary
   PRIMARY_PIPELINE_EXECUTION_ROLE: arn:aws:iam::767828749690:role/aws-sam-cli-managed-primary-p-PipelineExecutionRole-D1Zd2pEJECFQ
   PRIMARY_CLOUDFORMATION_EXECUTION_ROLE: arn:aws:iam::767828749690:role/aws-sam-cli-managed-prima-CloudFormationExecutionRo-Ond3NC0bm1Pu
