@@ -131,10 +131,6 @@ Resources:
       AttributeDefinitions:
         - AttributeName: url
           AttributeType: S
-        - AttributeName: owner
-          AttributeType: S
-        - AttributeName: status
-          AttributeType: S
       KeySchema:
         - AttributeName: url
           KeyType: HASH
