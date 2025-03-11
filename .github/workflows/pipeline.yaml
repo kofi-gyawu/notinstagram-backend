@@ -104,7 +104,7 @@ jobs:
 
       - name: Deploy primary
         run: |
-          sam deploy --stack-name ${PRIMARY_STACK_NAME} \
+          y | sam deploy --stack-name ${PRIMARY_STACK_NAME} \
             --template packaged-primary.yaml \
             --capabilities CAPABILITY_IAM \
             --region ${PRIMARY_REGION} \
@@ -136,7 +136,7 @@ jobs:
 
       - name: Deploy secondary
         run: |
-          sam deploy --stack-name ${SECONDARY_STACK_NAME} \
+          y | sam deploy --stack-name ${SECONDARY_STACK_NAME} \
             --template packaged-secondary.yaml \
             --capabilities CAPABILITY_IAM \
             --region ${SECONDARY_REGION} \
